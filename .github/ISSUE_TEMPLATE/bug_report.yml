@@ -6,15 +6,15 @@ body:
     attributes:
       value: |
         Before filing, please check
-        [Project status](https://github.com/Crown-OS/crownos-documentations/blob/main/docs/00-overview/project-status.md)
+        [Project status](https://github.com/Crown-OS/crownOs#verified-not-assumed)
         and
-        [Known limitations](https://github.com/Crown-OS/crownos-documentations/blob/main/docs/60-users/known-limitations.md).
+        [Known limitations](https://github.com/Crown-OS/crownOs/blob/main/docs/troubleshooting.md).
         Several components have documented gaps — blur not rendering, the dock
         not launching applications, five config sections having no reader — and
         those are known rather than bugs.
 
         **Do not report security issues here.** See
-        [SECURITY.md](https://github.com/Crown-OS/crownos-documentations/blob/main/SECURITY.md).
+        [SECURITY.md](https://github.com/Crown-OS/.github/blob/main/SECURITY.md).
 
   - type: input
     id: commit

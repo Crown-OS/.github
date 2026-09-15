@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Please check
-        [Project status](https://github.com/Crown-OS/crownos-documentations/blob/main/docs/00-overview/project-status.md)
+        [Project status](https://github.com/Crown-OS/crownOs#verified-not-assumed)
         first — a good deal of what CrownOS is "missing" is already specified and
         partly built, and that page lists it.
 

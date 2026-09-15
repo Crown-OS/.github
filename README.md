@@ -12,8 +12,9 @@ Four things live here:
 
 1. **Reusable workflows** that every CrownOS repository calls, so the native
    dependency list and the lint policy exist in one place instead of sixteen.
-2. **`crown-versions.toml`** — the single declaration of every dependency used by
-   more than one repo, enforced by `scripts/check-versions.py` in CI.
+2. **`scripts/check-ci-packages.py`** — keeps the apt lists in the workflows in
+   step with `crownos-setup/deps.toml`, which is where native dependencies are
+   actually declared.
 3. **Default community health files** — `CODE_OF_CONDUCT.md`, `SECURITY.md`, the
    issue templates and the pull-request template. GitHub applies these to any
    repo in the org that does not have its own, so they are maintained once
@@ -22,12 +23,17 @@ Four things live here:
 
 ## Reusable workflows
 
+`crownOs` deliberately does not use these: it carries its own `ci.yml`, because
+with one caller a reusable workflow costs a second checkout, a second place to
+look when CI breaks and `@main` version skew, for no reuse at all. `docs.yml` was
+retired with the documentation repository -- the docs live in `crownOs` now and
+its own CI checks their links.
+
 | Workflow | Used by | Does |
 |---|---|---|
-| `rust.yml` | the 11 Rust repos | rustfmt (blocking) · build · clippy (advisory) · test |
+| `rust.yml` | crowncrate-linux · lls-protocol · crownlauncher | rustfmt (blocking) · build · clippy (advisory) · test |
 | `web.yml` | crownos-website | bun install · biome check · next build |
 | `android.yml` | crowncrate-android | assembleDebug · unit tests · APK artifact |
-| `docs.yml` | crownos-documentations | relative-link check · status-marker consistency |
 | `shell.yml` | crownos-iso | shellcheck |
 | `release.yml` | Rust binaries, on `v*` tags | release build · tarball · draft GitHub Release |
 | `publish.yml` | Rust crates, on `v*` tags | tag/manifest check · dry run · `cargo publish` |
@@ -53,26 +59,12 @@ name, the second is the directory inside it.
 
 ### Inputs that matter
 
-**`siblings`** — the reason this is not a one-liner, though not for the reason
-it originally was. No crate declares a path dependency any more; they declare
-`crownshell = "0.3"` and `crownos-config = "0.2"`. **Neither version is on
-crates.io** (crownshell is published at 0.1.0 and 0.2.0 only), so a plain
-checkout cannot resolve at all. `siblings` clones the named repos next to the
-caller and writes a `[patch.crates-io]` overlay above both — the same overlay
-`crownos-setup`'s `bootstrap.sh --dev` writes on a contributor's machine.
-
-It is scaffolding for the pre-publish period. Once crownshell 0.3.0 and
-crownos-config 0.2.0 are on crates.io, every `siblings:` line can be deleted and
-CI resolves the way a stranger's clone does.
-
-Five repos need it: crownbar, crowndock, crownotify (crownshell), crowndictator
-(both) and crownpositor (crownos-config).
-
-```yaml
-    uses: Crown-OS/.github/.github/workflows/rust.yml@main
-    with:
-      siblings: crownshell crownos-config
-```
+**`packages`** and **`dbus`** are the only inputs that still matter. The
+`siblings` input is gone: it cloned neighbouring repos and wrote a
+`[patch.crates-io]` overlay so a crate could build against an unpublished
+version of its dependency. The nine Rust crates are now one Cargo workspace in
+[Crown-OS/crownOs](https://github.com/Crown-OS/crownOs), where they resolve each
+other by path, so there is nothing left to patch.
 
 **`packages`** — extra apt packages on top of the base Wayland/Vulkan/font/D-Bus
 set. The compositor needs `libdrm-dev libinput-dev libseat-dev libudev-dev
@@ -98,24 +90,15 @@ needs touching.
 
 ## Does a fresh clone build?
 
-`scripts/check-fresh-clone.py` resolves a repo's dependencies in a temporary
-directory where no `[patch.crates-io]` overlay can reach it — which is what a
-stranger's `git clone` gets. `rust.yml` runs it on every push and writes the
-result to the job summary.
+Yes — and it no longer needs a script to prove it. `check-fresh-clone.py` existed
+because every crate declared a dependency version that was not published, so the
+tree only built on one machine, behind an overlay nobody else had. The workspace
+merge removed the condition: `cargo build` in a clean clone of `crownOs` resolves
+by path and needs no setup at all.
 
-It exists because the failure it detects already happened: every crate declared
-a dependency version that was not published, everything still built for the
-maintainer because of a patch overlay above the checkouts, and nothing caught it
-because nothing ever built outside that directory.
-
-It is advisory today — five repos cannot resolve, for a reason no contributor
-can fix — and passing `--allow` lists them. Remove `continue-on-error` and the
-allowlist once tier 0 is published; that is the whole point of having it.
-
-```bash
-python3 scripts/check-fresh-clone.py --all ~/src/crownos
-python3 scripts/check-versions.py --lint-spec      # audit crown-versions.toml itself
-```
+What replaced it is `cargo tree --workspace --duplicates`, one line in that
+repo's CI, which surfaces the version skew `crown-versions.toml` used to police
+with 212 lines of Python.
 
 ## Build status
 
@@ -146,46 +129,32 @@ None of that is visible on GitHub yet — the fixes are local and unpushed.
   on demand from any distribution.
 - **No CODEOWNERS.** Review is a human reading the diff; there is no branch
   protection to enforce ownership.
-- **No dependabot.** The reason previously given — "several crates pin git
-  dependencies with no `rev`" — no longer holds; there are no git dependencies
-  left. The current reason is that `crown-versions.toml` owns shared versions,
-  so per-repo bumps would fight it. Raise versions there and propagate with
-  `scripts/sync-versions.py`.
+- **No dependabot — but the reason it was blocked has gone.** The old objections
+  were git dependencies with no `rev` (there are none left) and
+  `crown-versions.toml` fighting per-repo bumps (it is deleted). With one
+  workspace and one `[workspace.dependencies]` table, a bump is a single edit in
+  a single file, which is exactly the shape dependabot handles well. Worth
+  enabling on `crownOs`; it is simply not done yet.
 
 ## See also
 
-- [Contribution guide](https://github.com/Crown-OS/crownos-documentations/blob/main/CONTRIBUTING.md)
-- [CrownOS documentation](https://github.com/Crown-OS/crownos-documentations)
+- [Contribution guide](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md)
+- [CrownOS documentation](https://github.com/Crown-OS/crownOs/tree/main/docs)
 
 
 ---
 
-## crown-versions.toml
+## Where dependency versions live now
 
-The one place CrownOS declares dependency versions. `scripts/check-versions.py`
-runs as a blocking job in `rust.yml` and fails any repo that disagrees.
+In `crownOs`'s root `Cargo.toml`, as `[workspace.dependencies]`. Cargo enforces
+what a linter used to: there is one declaration and nine `workspace = true`
+references, so two members cannot disagree.
 
-It exists because the same dependency was declared four different ways across the
-tree — `anyhow` as `"1"`, `"1.0.100"`, `"1.0.102"` and `"1.0.104"` — and because
-`crowndictator` carried a hand-written comment claiming its Wayland pins were
-"versions matched to crownshell", alignment that nothing enforced.
-
-```bash
-# check every repo below a directory
-python3 scripts/check-versions.py --all ~/src/crownos
-
-# check one repo (what CI does)
-python3 scripts/check-versions.py ~/src/crownos/crownbar
-
-# rewrite manifests to match; only the version field is touched
-python3 scripts/sync-versions.py --all ~/src/crownos --dry-run
-python3 scripts/sync-versions.py --all ~/src/crownos
-```
-
-It is deliberately narrow — the CrownOS crates plus dependencies two or more
-repos declare. Deliberate differences go in `[exceptions]`, keyed
-`"<repo>.<dep>"`, so a real decision is distinguishable from an accident. A
-linter that tries to own every version becomes the thing everyone disables.
+`crown-versions.toml`, `check-versions.py` and `sync-versions.py` are deleted.
+They were a good answer to a problem that no longer exists — the same dependency
+declared four different ways across four repos — and keeping them would have
+meant maintaining a second, weaker copy of what the workspace already
+guarantees.
 
 ## Native dependencies are not defined here
 

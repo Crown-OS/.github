@@ -4,7 +4,7 @@
 # from published dependencies, or it cannot be reproduced from the tag. That
 # means a repo cannot be released until everything it depends on is already on
 # crates.io -- which is the ordering documented in
-# crownos-documentations/docs/40-contributing/releasing.md.
+# the release process, which is not written down yet -- nothing has shipped.
 name: Release
 
 # Reusable CD for CrownOS Rust binaries.

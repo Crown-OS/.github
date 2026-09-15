@@ -61,7 +61,7 @@ representative at an online or offline event.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement by opening a
 private security advisory on the affected repository, or by contacting a
-maintainer listed in [CONTRIBUTING.md](https://github.com/Crown-OS/crownos-documentations/blob/main/CONTRIBUTING.md) directly.
+maintainer listed in [CONTRIBUTING.md](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md) directly.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
