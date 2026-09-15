@@ -5,7 +5,8 @@
 # checked it. Three of the bugs this catches shipped precisely because the
 # scripts had no tests: dead [exceptions] entries that could never fire, a
 # `package =` rename the version checker could not see, and a docstring that
-# described enforcement the code did not do.
+# described enforcement the code did not do. Two of those scripts are gone now,
+# replaced by the Cargo workspace; what remains is the deps.toml plumbing.
 name: Self-check
 
 on:
@@ -50,9 +51,11 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: .github-org }
 
-      - name: Check crown-versions.toml is internally coherent
-        working-directory: .github-org
-        run: python3 scripts/check-versions.py --lint-spec
+      # The crown-versions.toml coherence check lived here. Both it and the
+      # spec it checked are gone: the nine desktop crates are one Cargo
+      # workspace now, so a single [workspace.dependencies] table is the
+      # version spec and cargo enforces it. A linter for a file that no longer
+      # exists is not a safety net.
 
       - uses: actions/checkout@v4
         with:
