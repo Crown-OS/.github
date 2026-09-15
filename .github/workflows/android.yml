@@ -1,0 +1,48 @@
+name: Android
+
+# Reusable CI for crowncrate-android.
+#
+# Note the JDK split: the project targets JVM 11 (sourceCompatibility,
+# targetCompatibility and jvmTarget are all 11), but AGP 8.13 needs JDK 17 to
+# *run* Gradle. So the runner gets 17 and the build still emits 11 bytecode.
+#
+# There is no ktlint plugin in this project, so no lint task is run here. If one
+# is added, wire it in below.
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        type: string
+        default: '17'
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: assemble / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble debug
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew test --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: crowncrate-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn

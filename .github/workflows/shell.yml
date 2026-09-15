@@ -1,0 +1,42 @@
+name: Shell
+
+# Reusable CI for crownos-iso.
+#
+# The profile is currently an unmodified copy of upstream Arch's `releng`, so
+# there is very little CrownOS-authored shell to check yet. This exists so that
+# the moment the profile is branded, the scripts are covered.
+#
+# SC2034 is excluded because profiledef.sh is *sourced* by mkarchiso — its
+# variables are consumed externally, so "appears unused" is always wrong there.
+
+on:
+  workflow_call:
+    inputs:
+      exclude:
+        description: Comma-separated shellcheck codes to ignore.
+        type: string
+        default: SC2034
+
+concurrency:
+  group: shell-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Check scripts
+        run: |
+          mapfile -t files < <(find . -name '*.sh' -not -path './.git/*')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+          printf '%s\n' "${files[@]}"
+          shellcheck --exclude='${{ inputs.exclude }}' "${files[@]}"

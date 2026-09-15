@@ -1,0 +1,40 @@
+name: Web
+
+# Reusable CI for crownos-website: Bun + Biome + Next.js.
+#
+# There is no `check-types` script and no test framework in that repo, so
+# `bun run build` is what type-checks — it runs `next build`, which fails on a
+# TypeScript error.
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        type: string
+        default: latest
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint / build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Biome handles lint and format. No ESLint, no Prettier.
+      - name: Biome
+        run: bun run lint
+
+      # Also the type check.
+      - name: Build
+        run: bun run build

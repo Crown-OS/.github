@@ -1,0 +1,124 @@
+name: Docs
+
+# Reusable CI for crownos-documentations.
+#
+# Two checks, both of which have caught real problems:
+#
+#   1. Every relative link resolves. The docs cross-reference heavily, so a
+#      renamed page silently breaks a dozen others.
+#   2. No page claims automation that does not exist. The docs deliberately
+#      describe CI, CODEOWNERS and DCO in terms of what is and is not set up;
+#      an unqualified "CI will reject..." is a bug.
+
+on:
+  workflow_call:
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generated:
+    name: generated pages are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: docs
+
+      # docs/10-getting-started/native-packages.md is a copy of
+      # crownos-setup/generated/prerequisites.md, which is itself generated from
+      # deps.toml. Three places used to hand-maintain the same package list and
+      # had already drifted; this makes drift a failing build instead.
+      - uses: actions/checkout@v4
+        with:
+          repository: Crown-OS/crownOs-setup
+          path: setup
+
+      - name: Regenerate and compare
+        run: |
+          python3 setup/scripts/gen.py --check
+          {
+            head -17 docs/docs/10-getting-started/native-packages.md
+            tail -n +4 setup/generated/prerequisites.md
+          } > /tmp/expected.md
+          if ! diff -u /tmp/expected.md docs/docs/10-getting-started/native-packages.md; then
+            echo "::error::native-packages.md is stale. Regenerate in crownos-setup and copy generated/prerequisites.md across."
+            exit 1
+          fi
+
+  links:
+    name: link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every relative link resolves
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+
+          # Fenced code blocks are stripped first. Without that, this check
+          # fails on documentation that quotes a link pattern -- including the
+          # page that documents this very check, whose example regex parses as
+          # a broken relative link.
+          FENCE = re.compile(r"^\s*(```|~~~)")
+          LINK  = re.compile(r"\]\((?!https?:|mailto:|#)([^)\s]+)")
+
+          bad = 0
+          for md in sorted(pathlib.Path(".").rglob("*.md")):
+              if ".git" in md.parts:
+                  continue
+              inside = False
+              for n, line in enumerate(md.read_text().splitlines(), 1):
+                  if FENCE.match(line):
+                      inside = not inside
+                      continue
+                  if inside:
+                      continue
+                  for m in LINK.finditer(line):
+                      target = m.group(1).split("#")[0]
+                      if not target or "\\" in target:
+                          continue          # anchor-only, or a quoted pattern
+                      if not (md.parent / target).exists():
+                          print(f"::error file={md},line={n}::broken link -> {target}")
+                          bad += 1
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Status markers agree across the three places they appear
+        run: |
+          fail=0
+          for f in docs/30-components/*.md; do
+            [ "$(basename "$f")" = "README.md" ] && continue
+            name=$(basename "$f" .md)
+            page=$(grep -m1 -o '\*\*Status: [A-Za-z]*\*\*' "$f" | sed 's/\*\*Status: //; s/\*\*//')
+            map=$(grep -o "\[$name\](\.\./30-components/$name\.md) | \*\*[A-Za-z]*\*\*" \
+                    docs/00-overview/component-map.md | grep -o '\*\*[A-Za-z]*\*\*$' | tr -d '*')
+            idx=$(grep -o "\[$name\]($name\.md) — \*\*[A-Za-z]*\*\*" \
+                    docs/30-components/README.md | grep -o '\*\*[A-Za-z]*\*\*$' | tr -d '*')
+            if [ "$page" != "$map" ] || [ "$page" != "$idx" ]; then
+              echo "::error file=$f::status marker disagrees — page=$page map=$map index=$idx"
+              fail=1
+            fi
+          done
+          exit $fail
+
+  claims:
+    name: no unbacked automation claims
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The docs must describe CI/CODEOWNERS/DCO accurately. When automation
+      # lands, update the prose in the same PR rather than deleting this check.
+      - name: Report every mention for review
+        run: |
+          echo "### Automation mentions" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -rniE '\bCI\b|CODEOWNERS|sign-off|\bDCO\b' \
+            docs/ README.md CONTRIBUTING.md templates/ \
+            >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Each of these must describe what is actually configured." \
+            >> "$GITHUB_STEP_SUMMARY"

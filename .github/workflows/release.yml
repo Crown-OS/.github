@@ -1,0 +1,86 @@
+# Builds a release binary from a v* tag.
+#
+# No sibling checkout and no [patch.crates-io]: a released binary must be built
+# from published dependencies, or it cannot be reproduced from the tag. That
+# means a repo cannot be released until everything it depends on is already on
+# crates.io -- which is the ordering documented in
+# crownos-documentations/docs/40-contributing/releasing.md.
+name: Release
+
+# Reusable CD for CrownOS Rust binaries.
+#
+# Deliberately basic: push a `v*` tag, get a release-mode x86_64 binary
+# attached to a GitHub Release. No cross-compilation, no packaging, no
+# crates.io publish, no signing. Those are worth adding — this is the smallest
+# thing that turns a tag into something a person can download.
+#
+# Note the binary name is an input because several packages are not named after
+# their repository: crownlauncher builds `launcher`, crownpositor builds
+# `compositor`.
+
+on:
+  workflow_call:
+    inputs:
+      binary:
+        description: Name of the binary cargo produces.
+        type: string
+        required: true
+      packages:
+        description: Extra apt packages beyond the CrownOS base set.
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build and attach
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out ${{ github.event.repository.name }}
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libvulkan-dev mesa-common-dev libegl1-mesa-dev libgbm-dev \
+            libfontconfig-dev libfreetype-dev \
+            libdbus-1-dev libbluetooth-dev \
+            libxcb1-dev libx11-dev \
+            ${{ inputs.packages }}
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ github.event.repository.name }}
+
+      - name: Build release
+        working-directory: ${{ github.event.repository.name }}
+        run: cargo build --release --bin ${{ inputs.binary }}
+
+      - name: Package
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          name="${{ inputs.binary }}-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu"
+          mkdir -p "dist/$name"
+          cp "target/release/${{ inputs.binary }}" "dist/$name/"
+          [ -f README.md ] && cp README.md "dist/$name/"
+          [ -f LICENSE ] && cp LICENSE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          sha256sum "dist/$name.tar.gz" > "dist/$name.tar.gz.sha256"
+          ls -la dist
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ github.event.repository.name }}/dist/*.tar.gz
+            ${{ github.event.repository.name }}/dist/*.sha256
+          generate_release_notes: true
+          draft: true

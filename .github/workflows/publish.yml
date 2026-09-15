@@ -1,0 +1,117 @@
+# Publish a crate to crates.io on a v* tag.
+#
+# Called alongside release.yml, which builds the binary tarball. This one puts
+# the source on the registry so `cargo install <name>` works.
+#
+# Needs a CARGO_REGISTRY_TOKEN organization secret. Create it at
+# https://crates.io/settings/tokens, scoped to publish-update only.
+#
+# crates.io is append-only: a version can be yanked but never reused, and a
+# name is held forever. `cargo publish --dry-run` runs on every PR via rust.yml
+# so metadata problems surface long before a tag is cut.
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        description: >-
+          Space-separated packages to publish, in dependency order. Required
+          for workspace repos -- `cargo publish --workspace` is nightly-only
+          as of 1.88, so members must be published one at a time. Leave empty
+          for a single-crate repo.
+        type: string
+        default: ''
+      siblings:
+        description: Sibling repos to check out flat (see rust.yml).
+        type: string
+        default: ''
+      packages_apt:
+        description: Extra apt packages beyond the base set.
+        type: string
+        default: ''
+      toolchain:
+        description: Rust toolchain. Repos pin one in rust-toolchain.toml.
+        type: string
+        default: '1.88.0'
+    secrets:
+      CARGO_REGISTRY_TOKEN:
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out ${{ github.event.repository.name }}
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+
+      - name: Check out sibling repos
+        if: inputs.siblings != ''
+        run: |
+          for repo in ${{ inputs.siblings }}; do
+            git clone --depth 1 "https://github.com/Crown-OS/$repo.git" "$repo"
+          done
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libvulkan-dev mesa-common-dev libegl1-mesa-dev libgbm-dev \
+            libfontconfig-dev libfreetype-dev \
+            libdbus-1-dev libbluetooth-dev \
+            libxcb1-dev libx11-dev \
+            ${{ inputs.packages_apt }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ github.event.repository.name }}
+
+      - name: Verify the tag matches the manifest version
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          # Any package whose version disagrees with the tag is a mistake worth
+          # stopping for -- the publish cannot be undone.
+          bad=0
+          while read -r name version; do
+            case " ${{ inputs.packages }} " in
+              *" $name "*|"  ") ;;
+              *) [ -n "${{ inputs.packages }}" ] && continue ;;
+            esac
+            if [ "$version" != "$tag" ]; then
+              echo "::error::$name is $version but the tag says $tag"
+              bad=1
+            fi
+          done <<< "$(cargo metadata --no-deps --format-version 1 \
+                      | python3 -c 'import json,sys; [print(p["name"], p["version"]) for p in json.load(sys.stdin)["packages"]]')"
+          [ "$bad" -eq 0 ]
+
+      - name: Dry run
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          if [ -n "${{ inputs.packages }}" ]; then
+            for p in ${{ inputs.packages }}; do cargo publish -p "$p" --dry-run --locked; done
+          else
+            cargo publish --dry-run --locked
+          fi
+
+      - name: Publish
+        working-directory: ${{ github.event.repository.name }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.packages }}" ]; then
+            # Sequential, in the order given. Each publish waits for the index
+            # to catch up before the next one resolves it.
+            for p in ${{ inputs.packages }}; do cargo publish -p "$p" --locked; done
+          else
+            cargo publish --locked
+          fi

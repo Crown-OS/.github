@@ -1,0 +1,65 @@
+# CI for this repository itself.
+#
+# Everything here is machinery that runs in seventeen other repos, so a mistake
+# in it is a mistake everywhere at once -- and until this existed, nothing
+# checked it. Three of the bugs this catches shipped precisely because the
+# scripts had no tests: dead [exceptions] entries that could never fire, a
+# `package =` rename the version checker could not see, and a docstring that
+# described enforcement the code did not do.
+name: Self-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  yaml:
+    name: Workflows parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse every workflow
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys, yaml
+          bad = 0
+          for p in sorted(pathlib.Path(".github/workflows").glob("*.yml")):
+              try:
+                  yaml.safe_load(p.read_text())
+                  print(f"ok    {p}")
+              except Exception as e:
+                  print(f"FAIL  {p}: {e}"); bad += 1
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          fail-on-error: true
+
+  scripts:
+    name: Version and package checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: .github-org }
+
+      - name: Check crown-versions.toml is internally coherent
+        working-directory: .github-org
+        run: python3 scripts/check-versions.py --lint-spec
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Crown-OS/crownOs-setup
+          path: crownos-setup
+
+      - name: deps.toml is the source of the CI package lists
+        run: |
+          python3 .github-org/scripts/check-ci-packages.py crownos-setup
+          python3 crownos-setup/scripts/gen.py --check

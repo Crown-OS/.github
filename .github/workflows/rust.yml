@@ -1,0 +1,230 @@
+name: Rust
+
+# Reusable CI for every CrownOS Rust repository.
+#
+# Callers live in each repo as .github/workflows/ci.yml and pass only what
+# differs — sibling checkouts, extra native packages, whether tests need a
+# D-Bus session.
+#
+# Two CrownOS specifics drive the design:
+#
+#   1. Several crates declare `path = "../crownshell"` or
+#      `path = "../crownos-config"`, so the checkout has to be a FLAT SIBLING
+#      layout. The caller repo is checked out into a directory named after
+#      itself and siblings are cloned alongside it.
+#   2. Clippy does not block. ~15k lines have never been linted; the backlog is
+#      burned down first, then `-D warnings` gets turned on here in one place.
+
+on:
+  workflow_call:
+    inputs:
+      siblings:
+        description: >
+          Space-separated Crown-OS repos to clone as flat siblings, for crates
+          with path dependencies. Example: "crownshell crownos-config"
+        type: string
+        default: ''
+      packages:
+        description: >
+          Extra apt packages beyond the CrownOS base set. Example:
+          "libdrm-dev libinput-dev"
+        type: string
+        default: ''
+      dbus:
+        description: >
+          Run tests under dbus-run-session with --test-threads=1. Needed by
+          crownotify, whose tests register real well-known session-bus names.
+        type: boolean
+        default: false
+      test:
+        description: Run the test suite.
+        type: boolean
+        default: true
+      toolchain:
+        description: Rust toolchain. Repos pin one in rust-toolchain.toml; 1.88 floor.
+        type: string
+        default: stable
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Keep tests away from a real ~/.config/crownos. CROWN_CONFIG_DIR is
+  # process-global, which is also why crownos-config's e2e suite is a single
+  # test function.
+  CROWN_CONFIG_DIR: /tmp/crownos-ci
+
+jobs:
+  versions:
+    name: version drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out ${{ github.event.repository.name }}
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+
+      # crown-versions.toml is the single declaration of every dependency used
+      # by more than one repo. Before it existed, anyhow was declared four
+      # different ways across the tree.
+      - name: Check out Crown-OS/.github
+        uses: actions/checkout@v4
+        with:
+          repository: Crown-OS/.github
+          path: crown-github
+
+      - name: Check for version drift
+        run: |
+          python3 crown-github/scripts/check-versions.py \
+            "${{ github.event.repository.name }}"
+
+      # The apt lists in the reusable workflows are generated from
+      # crownos-setup/deps.toml. This is what stops them drifting back -- the
+      # base set once installed libfontconfig-1-dev, which exists on neither
+      # Debian nor Ubuntu.
+      - uses: actions/checkout@v4
+        with:
+          repository: Crown-OS/crownOs-setup
+          path: crown-setup
+
+      - name: Check CI package lists against deps.toml
+        run: python3 crown-github/scripts/check-ci-packages.py crown-setup
+
+      # The works-on-my-machine detector. Resolves this repo's dependencies in a
+      # temporary directory where no [patch.crates-io] overlay can reach it --
+      # which is what a stranger's `git clone` gets. Advisory for now: five repos
+      # declare crownshell 0.3 / crownos-config 0.2 and neither is published, so
+      # making it blocking today would turn every one of them red for a reason
+      # the contributor cannot fix. Remove `continue-on-error` and drop `--allow`
+      # once tier 0 is on crates.io -- that is the point of the check.
+      - name: Does a fresh clone resolve?
+        id: fresh
+        continue-on-error: true
+        run: |
+          python3 crown-github/scripts/check-fresh-clone.py \
+            --allow "crownbar crowndock crownotify crowndictator crownpositor" \
+            "${{ github.event.repository.name }}" | tee /tmp/fresh.txt
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo "### Fresh-clone resolution"
+            echo '```'
+            cat /tmp/fresh.txt 2>/dev/null || echo "(check did not run)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Fast feedback, no native dependencies, blocking.
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  build:
+    name: build / clippy / test
+    runs-on: ubuntu-latest
+    steps:
+      # The caller repo goes into a directory named after itself so that
+      # `../crownshell` resolves from inside it.
+      - name: Check out ${{ github.event.repository.name }}
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.event.repository.name }}
+
+      # CrownOS crates depend on each other by published crates.io version, not
+      # by path. Siblings are still cloned, and overridden with a
+      # [patch.crates-io] table, for two reasons:
+      #
+      #   1. It tests the repo against the CURRENT state of its dependencies
+      #      rather than the last release, so a breaking change in crownshell
+      #      shows up on crownbar's PR instead of after publishing.
+      #   2. It lets CI pass before a dependency version exists on crates.io,
+      #      which is what makes the first publish of a new version possible.
+      #
+      # This is exactly the overlay `crownos-setup bootstrap.sh --dev` writes
+      # locally, so CI and a contributor's machine resolve the same way.
+      - name: Check out sibling repos
+        if: inputs.siblings != ''
+        run: |
+          for repo in ${{ inputs.siblings }}; do
+            echo "::group::clone $repo"
+            git clone --depth 1 "https://github.com/Crown-OS/$repo.git" "$repo"
+            echo "::endgroup::"
+          done
+
+      - name: Override siblings with a workspace-level patch
+        if: inputs.siblings != ''
+        run: |
+          mkdir -p .cargo
+          {
+            echo "# Generated by Crown-OS/.github rust.yml."
+            echo "[patch.crates-io]"
+            for repo in ${{ inputs.siblings }}; do
+              echo "$repo = { path = \"$repo\" }"
+            done
+          } > .cargo/config.toml
+          echo "::group::.cargo/config.toml"
+          cat .cargo/config.toml
+          echo "::endgroup::"
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libvulkan-dev mesa-common-dev libegl1-mesa-dev libgbm-dev \
+            libfontconfig-dev libfreetype-dev \
+            libdbus-1-dev libbluetooth-dev \
+            libxcb1-dev libx11-dev \
+            ${{ inputs.packages }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ github.event.repository.name }}
+
+      - name: Build
+        working-directory: ${{ github.event.repository.name }}
+        run: cargo build --all-targets --locked || cargo build --all-targets
+
+      # Non-blocking on purpose. Flip to `-D warnings` once the backlog is
+      # cleared — this is the only place that needs changing.
+      - name: Clippy (advisory)
+        id: clippy
+        continue-on-error: true
+        working-directory: ${{ github.event.repository.name }}
+        run: cargo clippy --all-targets --all-features
+
+      - name: Note clippy result
+        if: steps.clippy.outcome == 'failure'
+        run: |
+          echo "### Clippy reported warnings" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Advisory only — this does not fail the build yet." >> "$GITHUB_STEP_SUMMARY"
+          echo "See the *Clippy (advisory)* step for the output." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test
+        if: inputs.test && !inputs.dbus
+        working-directory: ${{ github.event.repository.name }}
+        run: cargo test --all
+
+      # crownotify's tests register real well-known names on the session bus,
+      # so they need a bus to exist and must not run concurrently.
+      - name: Test (under a D-Bus session)
+        if: inputs.test && inputs.dbus
+        working-directory: ${{ github.event.repository.name }}
+        run: dbus-run-session -- cargo test --all -- --test-threads=1
