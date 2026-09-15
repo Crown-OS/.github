@@ -131,10 +131,12 @@ jobs:
       - name: Note clippy result
         if: steps.clippy.outcome == 'failure'
         run: |
-          echo "### Clippy reported warnings" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Advisory only — this does not fail the build yet." >> "$GITHUB_STEP_SUMMARY"
-          echo "See the *Clippy (advisory)* step for the output." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Clippy reported warnings"
+            echo ""
+            echo "Advisory only — this does not fail the build yet."
+            echo "See the *Clippy (advisory)* step for the output."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test
         if: inputs.test && !inputs.dbus
