@@ -1,14 +1,10 @@
 # CrownOS
+**Not yet another Linux Distro**
 
-A Wayland-native Linux desktop written from scratch in Rust — compositor, shell,
-bar, dock, notifications, settings and a phone bridge — plus the Arch-based
-distribution that ships them.
-
-> **CrownOS is early.** It builds and it runs, and it is not yet something you
-> install on your only laptop. The
-> [table of what is verified](https://github.com/Crown-OS/crownOs#verified-not-assumed)
-> says exactly what works today, component by component. Nothing here describes
-> software that does not exist.
+It is a **Agentic Linux desktop** written from scratch in **Rust**.
+We are reinventing everything like 
+compositor, shell, bar, dock, notifications, settings and a phone bridge
+for high performance, fluid animations and polished user experience.
 
 ## Start here
 
@@ -20,11 +16,11 @@ distribution that ships them.
 | wanting to contribute | [CONTRIBUTING.md](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md) |
 | wanting to test and report bugs | [What is verified](https://github.com/Crown-OS/crownOs#verified-not-assumed), then open an issue on [crownOs](https://github.com/Crown-OS/crownOs/issues) |
 
-## The pieces
+## Dependency Graph
 
 ```
-                      crownpositor          the Wayland compositor; it *is* the
-                    (the Wayland server)    session, and spawns the rest
+                      crownpositor           the session that spawns the rest
+                    (the Wayland server)
                             │
               ┌─────────────┼──────────────┬──────────────┐
            crownbar     crowndock      crownotify    crowndictator
@@ -32,8 +28,8 @@ distribution that ships them.
                             │  all built on
                        crownshell            layer-shell + Vello framework
 
-     crownos-config   settings schema, read live by everything above
-     crownuikit       widget kit (xilem) for the settings surfaces
+     crownos-config   Global config manager, read live by all system apps
+     crownuikit       UI framework to build beautiful high perfomance apps for wayland 
      crowncrate-*     phone bridge: Linux daemon, Android and Chrome clients
      lls-protocol     low-latency screen-streaming protocol
      crownos-iso      the installation image
