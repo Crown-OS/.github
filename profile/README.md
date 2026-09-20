@@ -1,6 +1,6 @@
 # **CrownOS** - Not yet another Linux Distro
 
-It is a **Agentic Linux desktop** written from scratch in **Rust**.
+CrownOS is an **Agentic Linux desktop OS** written in **Rust**.
 We are reinventing everything like 
 compositor, shell, bar, dock, notifications, settings and a phone bridge
 for high performance, fluid animations and polished user experience.
