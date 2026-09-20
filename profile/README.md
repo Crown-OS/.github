@@ -1,5 +1,4 @@
-# CrownOS
-**Not yet another Linux Distro**
+# **CrownOS** - Not yet another Linux Distro
 
 It is a **Agentic Linux desktop** written from scratch in **Rust**.
 We are reinventing everything like 
