@@ -1,60 +1,60 @@
 # **CrownOS** - Not yet another Linux Distro
 
 CrownOS is an **Agentic Linux desktop OS** written in **Rust**.
-We are reinventing everything like 
+We are redesigning everything like 
 compositor, shell, bar, dock, notifications, settings and a phone bridge
 for high performance, fluid animations and polished user experience.
 
-## Start here
-
-| You are… | Go to |
-|---|---|
-| curious what this is | [crownOs](https://github.com/Crown-OS/crownOs) — the desktop, and how it fits together |
-| setting up any Linux machine | [crownOs-setup](https://github.com/Crown-OS/crownOs-setup) — one script, any distribution |
-| wanting to build and run it | [Build it](https://github.com/Crown-OS/crownOs#build-it) |
-| wanting to contribute | [CONTRIBUTING.md](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md) |
-| wanting to test and report bugs | [What is verified](https://github.com/Crown-OS/crownOs#verified-not-assumed), then open an issue on [crownOs](https://github.com/Crown-OS/crownOs/issues) |
-
 ## Dependency Graph
 
+```text
+                                      crownos-iso
+                               (Linux Installation Image)
+                                           │
+                                           ▼
+                                     crowndesktop
+                                (Desktop Environment)
+                                           │
+                                           ▼
+                                      crownpositor
+                                    (Wayland Server)
+                                           │
+             ┌──────────────┬──────────────┼──────────────┬──────────────┐
+             │              │              │              │              │
+             ▼              ▼              ▼              ▼              ▼
+          crownbar       crowndock      crownotify    crownlauncher  crowndictator
+             │              │              │              │              │
+             └──────────────┴──────────────┼──────────────┴──────────────┘
+                                           │
+                                           ▼
+                                       crownshell
+                                   (Shell Framework)
+
+
+          crownuikit                                     lls-protocol
+         (UI Toolkit)                                 (Network Protocol)
+              │                                                │
+              ▼                           ┌────────────────────┼────────────────────┐
+        crownsettings                     │                    │                    │
+        (System Apps)                     ▼                    ▼                    ▼
+                                  crowncrate-linux   crowncrate-chrome  crowncrate-android
+
 ```
-                      crownpositor           the session that spawns the rest
-                    (the Wayland server)
-                            │
-              ┌─────────────┼──────────────┬──────────────┐
-           crownbar     crowndock      crownotify    crowndictator
-              └─────────────┴──────────────┴──────────────┘
-                            │  all built on
-                       crownshell            layer-shell + Vello framework
 
-     crownos-config   Global config manager, read live by all system apps
-     crownuikit       UI framework to build beautiful high perfomance apps for wayland 
-     crowncrate-*     phone bridge: Linux daemon, Android and Chrome clients
-     lls-protocol     low-latency screen-streaming protocol
-     crownos-iso      the installation image
-     crownos-setup    native dependencies and toolchain, on any distribution
-
-     everything above the crowncrate line lives in one repo: Crown-OS/crownOs
-```
-
-## Repositories
-
-| Repo | What it is |
-|---|---|
-| [crownOs](https://github.com/Crown-OS/crownOs) | **The desktop.** Nine crates in one workspace: compositor, shell framework, bar, dock, notifications, dictation, config schema, widget kit — and the documentation |
-| [crownOs-setup](https://github.com/Crown-OS/crownOs-setup) | Native dependencies and toolchain, on any distribution |
-| [crownos-iso](https://github.com/Crown-OS/crownos-iso) · [crownos-website](https://github.com/Crown-OS/crownos-website) | Installation image; website |
-| [crowncrate-linux](https://github.com/Crown-OS/crowncrate-linux) · [crowncrate-android](https://github.com/Crown-OS/crowncrate-android) | Phone bridge |
-| [lls-protocol](https://github.com/Crown-OS/lls-protocol) | Low-latency streaming protocol |
-| [crownlauncher](https://github.com/Crown-OS/crownlauncher) | Application launcher |
-
-The per-crate repositories — crownshell, crownos-config, crownbar, crowndock,
-crownotify, crowndictator, crownuikit, crownpositor — are **archived**. Their
-URLs still resolve and their history is intact; the code moved into `crownOs` so
-that a change crossing two crates is one commit, one review and one CI run.
-Crate names on crates.io are unchanged.
-
-## Licence
-
-MIT, except [crownos-iso](https://github.com/Crown-OS/crownos-iso), which is
-GPL-3.0-or-later because it derives from Arch Linux's archiso profile.
+| Repository | Description |
+| --- | --- |
+| [`crownos-iso`](https://github.com/Crown-OS/crownos-iso?utm_source=gemini) | Linux installation image |
+| [`crowndesktop`](https://github.com/Crown-OS/crowndesktop?utm_source=gemini) | Desktop environment |
+| [`crownpositor`](https://www.google.com/search?q=https://github.com/Crown-OS/crownpositor&utm_source=gemini) | Wayland compositor |
+| [`crownbar`](https://www.google.com/search?q=https://github.com/Crown-OS/crownbar&utm_source=gemini) | Desktop status bar |
+| [`crowndock`](https://www.google.com/search?q=https://github.com/Crown-OS/crowndock&utm_source=gemini) | Application dock |
+| [`crownotify`](https://www.google.com/search?q=https://github.com/Crown-OS/crownotify&utm_source=gemini) | Notification system |
+| [`crownlauncher`](https://github.com/Crown-OS/crownlauncher?utm_source=gemini) | Application launcher |
+| [`crowndictator`](https://www.google.com/search?q=https://github.com/Crown-OS/crowndictator&utm_source=gemini) | System control and automation |
+| [`crownshell`](https://github.com/Crown-OS/crownshell?utm_source=gemini) | Framework for building CrownOS shell components |
+| [`crownuikit`](https://www.google.com/search?q=https://github.com/Crown-OS/crownuikit&utm_source=gemini) | UI toolkit for system applications |
+| [`crownsettings`](https://www.google.com/search?q=https://github.com/Crown-OS/crownsettings&utm_source=gemini) | System settings application |
+| [`lls-protocol`](https://github.com/Crown-OS/lls-protocol?utm_source=gemini) | Network transmission protocol for CrownConnect |
+| [`crowncrate-linux`](https://github.com/Crown-OS/crowncrate-linux?utm_source=gemini) | Linux client for the CrownConnect bridge |
+| [`crowncrate-chrome`](https://github.com/Crown-OS/crowncrate-chrome?utm_source=gemini) | Browser plugin bridge for CrownConnect |
+| [`crowncrate-android`](https://github.com/Crown-OS/crowncrate-android?utm_source=gemini) | Phone client for the CrownConnect bridge |
