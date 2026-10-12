@@ -36,6 +36,7 @@ its own CI checks their links.
 | `android.yml` | crowncrate-android | assembleDebug · unit tests · APK artifact |
 | `shell.yml` | crownos-iso | shellcheck |
 | `release.yml` | Rust binaries, on `v*` tags | release build · tarball · draft GitHub Release |
+| `arch-package.yml` | Rust components, on `v*` tags | release build · `.pkg.tar.zst` · published GitHub Release for crownos-iso |
 | `publish.yml` | Rust crates, on `v*` tags | tag/manifest check · dry run · `cargo publish` |
 
 ### Calling one
