@@ -3,24 +3,24 @@ name: Rust
 # Reusable CI for every CrownOS Rust repository.
 #
 # Callers live in each repo as .github/workflows/ci.yml and pass only what
-# differs — sibling checkouts, extra native packages, whether tests need a
-# D-Bus session.
+# differs — extra pacman packages, whether tests need a D-Bus session.
 #
 # Two CrownOS specifics drive the design:
 #
-#   1. Several crates declare `path = "../crownshell"` or
-#      `path = "../crownos-config"`, so the checkout has to be a FLAT SIBLING
-#      layout. The caller repo is checked out into a directory named after
-#   2. Clippy does not block. ~15k lines have never been linted; the backlog is
-#      burned down first, then `-D warnings` gets turned on here in one place.
+#   1. Crates depend on each other by `path = "../crownos-config"`, so the
+#      checkout is a FLAT SIBLING layout. prepare-workspace checks the caller
+#      out into a directory named after itself and clones every sibling it
+#      references next to it.
+#   2. Clippy does not block. The backlog is burned down first, then
+#      `-D warnings` gets turned on here in one place.
 
 on:
   workflow_call:
     inputs:
       packages:
         description: >
-          Extra apt packages beyond the CrownOS base set. Example:
-          "libdrm-dev libinput-dev"
+          Extra pacman packages beyond the CrownOS base set. Example:
+          "libdrm libinput"
         type: string
         default: ''
       dbus:
@@ -34,7 +34,7 @@ on:
         type: boolean
         default: true
       toolchain:
-        description: Rust toolchain. Repos pin one in rust-toolchain.toml; 1.88 floor.
+        description: Rust toolchain. A repo's rust-toolchain.toml still wins.
         type: string
         default: stable
 
@@ -51,82 +51,36 @@ env:
   CROWN_CONFIG_DIR: /tmp/crownos-ci
 
 jobs:
-  versions:
-    name: version drift
+  check:
+    name: fmt / build / clippy / test
     runs-on: ubuntu-latest
+    container: archlinux:latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.event.repository.name }}
     steps:
-      - uses: actions/checkout@v4
-
-      # crown-versions.toml and check-versions.py are gone: the nine Rust
-      # crates are one Cargo workspace now, where [workspace.dependencies] does
-      # that job structurally. What is left here is the apt-list check, which
-      # still has real work -- deps.toml remains the source for these lists.
-      - name: Check out Crown-OS/.github
-        uses: actions/checkout@v4
+      - uses: Crown-OS/.github/.github/actions/prepare-workspace@main
         with:
-          repository: Crown-OS/.github
-          path: crown-github
-
-      # The apt lists in the reusable workflows are generated from
-      # crownos-setup/deps.toml. This is what stops them drifting back -- the
-      # base set once installed libfontconfig-1-dev, which exists on neither
-      # Debian nor Ubuntu.
-      - uses: actions/checkout@v4
-        with:
-          repository: Crown-OS/crownOs-setup
-          path: crown-setup
-
-      - name: Check CI package lists against deps.toml
-        run: python3 crown-github/scripts/check-ci-packages.py crown-setup
-
-
-  # Fast feedback, no native dependencies, blocking.
-  fmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all --check
-
-  build:
-    name: build / clippy / test
-    runs-on: ubuntu-latest
-    steps:
-      # The caller repo goes into a directory named after itself so that
-      # `../crownshell` resolves from inside it.
-      - uses: actions/checkout@v4
-
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config \
-            libwayland-dev wayland-protocols libxkbcommon-dev \
-            libvulkan-dev mesa-common-dev libegl1-mesa-dev libgbm-dev \
-            libfontconfig-dev libfreetype-dev \
-            libdbus-1-dev libbluetooth-dev \
-            libxcb1-dev libx11-dev \
-            ${{ inputs.packages }}
-
-      - uses: dtolnay/rust-toolchain@master
-        with:
+          packages: ${{ inputs.packages }}
           toolchain: ${{ inputs.toolchain }}
-          components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ github.event.repository.name }}
+
+      - name: rustfmt
+        run: cargo fmt --all --check
 
       - name: Build
-        run: cargo build --all-targets --locked || cargo build --all-targets
+        run: cargo build --all-targets $([ -f Cargo.lock ] && echo --locked)
 
       # Non-blocking on purpose. Flip to `-D warnings` once the backlog is
       # cleared — this is the only place that needs changing.
       - name: Clippy (advisory)
         id: clippy
         continue-on-error: true
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Note clippy result
         if: steps.clippy.outcome == 'failure'

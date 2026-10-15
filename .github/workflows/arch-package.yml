@@ -8,8 +8,7 @@
 # that are dlopen'd and so invisible to it (Vulkan, Wayland, xkbcommon).
 #
 # Path dependencies outside the repository (`../crownos-config`, `../vendor`)
-# are cloned flat from Crown-OS until none is missing. A directory whose
-# repository is named differently is mapped through `aliases`.
+# are cloned flat from Crown-OS by the prepare-workspace action.
 
 name: Arch package
 
@@ -27,9 +26,9 @@ on:
       aliases:
         description: >-
           Space-separated dir=repository pairs for siblings whose directory
-          differs from their repository name. Example: "llts-protocol=lls-protocol"
+          differs from their repository name.
         type: string
-        default: ''
+        default: llts-protocol=lls-protocol
 
 permissions:
   contents: write
@@ -45,44 +44,10 @@ jobs:
     env:
       REPOSITORY: ${{ github.event.repository.name }}
     steps:
-      - name: Install toolchain
-        run: |
-          pacman -Syu --noconfirm --needed \
-            base-devel rustup clang git github-cli jq \
-            wayland wayland-protocols libxkbcommon vulkan-icd-loader vulkan-headers mesa \
-            fontconfig freetype2 dbus bluez-libs libxcb libx11 systemd-libs \
-            ${{ inputs.packages }}
-          rustup default stable
-
-      - uses: actions/checkout@v4
+      - uses: Crown-OS/.github/.github/actions/prepare-workspace@main
         with:
-          path: ${{ github.event.repository.name }}
-
-      - name: Check out sibling repositories
-        env:
-          ALIASES: ${{ inputs.aliases }}
-          GIT_TERMINAL_PROMPT: 0
-        run: |
-          declare -A repository_of
-          for pair in $ALIASES; do repository_of[${pair%%=*}]=${pair#*=}; done
-
-          missing_siblings() {
-            find . -name Cargo.toml -not -path '*/target/*' -print0 |
-              while IFS= read -r -d '' manifest; do
-                sed -nE 's/.*path *= *"([^"]+)".*/\1/p' "$manifest" |
-                  while read -r relative; do
-                    realpath -m --relative-to=. "$(dirname "$manifest")/$relative" | cut -d/ -f1
-                  done
-              done | sort -u | while read -r dir; do [ -e "$dir" ] || echo "$dir"; done
-          }
-
-          while missing=$(missing_siblings) && [ -n "$missing" ]; do
-            for dir in $missing; do
-              repository=${repository_of[$dir]:-$dir}
-              git clone --quiet --depth 1 "https://github.com/Crown-OS/$repository.git" "$dir" ||
-                { echo "::error::path dependency ../$dir has no Crown-OS/$repository repository"; exit 1; }
-            done
-          done
+          packages: ${{ inputs.packages }}
+          aliases: ${{ inputs.aliases }}
 
       - name: Build
         working-directory: ${{ github.event.repository.name }}

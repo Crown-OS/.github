@@ -1,0 +1,68 @@
+# Shared setup for every CrownOS Rust job. Runs inside an archlinux container,
+# so build dependencies are the same pacman packages the ISO ships.
+#
+# The caller repo is checked out into a directory named after itself, and
+# every path dependency outside it (`../crownos-config`, `../vendor` ...) is
+# cloned flat next to it from Crown-OS, repeatedly, until none is missing.
+
+name: Prepare CrownOS workspace
+description: Install the pacman toolchain, check out the repository and its sibling path dependencies.
+
+inputs:
+  packages:
+    description: Extra pacman packages beyond the CrownOS base set.
+    default: ''
+  aliases:
+    description: >-
+      Space-separated dir=repository pairs for siblings whose directory differs
+      from their repository name.
+    default: llts-protocol=lls-protocol
+  toolchain:
+    description: Default Rust toolchain. A repo's rust-toolchain.toml still wins.
+    default: stable
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain
+      shell: bash
+      run: |
+        pacman -Syu --noconfirm --needed \
+          base-devel rustup clang cmake git github-cli jq \
+          wayland wayland-protocols libxkbcommon vulkan-icd-loader vulkan-headers mesa \
+          fontconfig freetype2 dbus bluez-libs libxcb libx11 systemd-libs \
+          ${{ inputs.packages }}
+        rustup default ${{ inputs.toolchain }}
+        rustup component add rustfmt clippy
+
+    - uses: actions/checkout@v7
+      with:
+        path: ${{ github.event.repository.name }}
+
+    - name: Check out sibling repositories
+      shell: bash
+      env:
+        ALIASES: ${{ inputs.aliases }}
+        GIT_TERMINAL_PROMPT: '0'
+      run: |
+        declare -A repository_of
+        for pair in $ALIASES; do repository_of[${pair%%=*}]=${pair#*=}; done
+
+        missing_siblings() {
+          find . -name Cargo.toml -not -path '*/target/*' -print0 |
+            while IFS= read -r -d '' manifest; do
+              sed -nE 's/.*path *= *"([^"]+)".*/\1/p' "$manifest" |
+                while read -r relative; do
+                  realpath -m --relative-to=. "$(dirname "$manifest")/$relative" | cut -d/ -f1
+                done
+            done | sort -u | while read -r dir; do [ -e "$dir" ] || echo "$dir"; done
+        }
+
+        while missing=$(missing_siblings) && [ -n "$missing" ]; do
+          for dir in $missing; do
+            repository=${repository_of[$dir]:-$dir}
+            git clone --quiet --depth 1 "https://github.com/Crown-OS/$repository.git" "$dir" ||
+              { echo "::error::path dependency ../$dir has no Crown-OS/$repository repository"; exit 1; }
+            echo "cloned Crown-OS/$repository@$(git -C "$dir" rev-parse --short HEAD) into ../$dir"
+          done
+        done
