@@ -78,7 +78,7 @@ jobs:
           [ -f Cargo.lock ] && locked=(--locked)
           cargo build --all-targets "${locked[@]}"
 
-      # Non-blocking on purpose. Flip to `-D warnings` once the backlog is
+      # Non-blocking on purpose. Drop `continue-on-error` once the backlog is
       # cleared — this is the only place that needs changing.
       - name: Clippy (advisory)
         id: clippy
