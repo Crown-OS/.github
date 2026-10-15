@@ -69,8 +69,10 @@ jobs:
         with:
           workspaces: ${{ github.event.repository.name }}
 
+      # Workspace members only: `--all` would also format the sibling path
+      # dependencies, which their own CI already checks.
       - name: rustfmt
-        run: cargo fmt --all --check
+        run: cargo fmt --check
 
       - name: Build
         run: |
