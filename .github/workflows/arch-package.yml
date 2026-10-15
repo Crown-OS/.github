@@ -51,7 +51,10 @@ jobs:
 
       - name: Build
         working-directory: ${{ github.event.repository.name }}
-        run: cargo build --release --bins $([ -f Cargo.lock ] && echo --locked)
+        run: |
+          locked=()
+          [ -f Cargo.lock ] && locked=(--locked)
+          cargo build --release --bins "${locked[@]}"
 
       - name: Write PKGBUILD
         working-directory: ${{ github.event.repository.name }}
@@ -68,7 +71,7 @@ jobs:
           license=$(jq -r '[.packages[].license | select(.)][0] // "custom"' <<<"$metadata")
           mapfile -t depends < <({
             ldd "${binaries[@]}" | awk '$2 == "=>" && $3 ~ /^\// { print $3 }' | xargs -r pacman -Qqo
-            printf '%s\n' $EXTRA_DEPENDS
+            tr ' ' '\n' <<<"$EXTRA_DEPENDS"
           } | sort -u | awk NF)
 
           version=${GITHUB_REF_NAME#v}

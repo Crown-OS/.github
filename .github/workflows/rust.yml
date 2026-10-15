@@ -73,7 +73,10 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Build
-        run: cargo build --all-targets $([ -f Cargo.lock ] && echo --locked)
+        run: |
+          locked=()
+          [ -f Cargo.lock ] && locked=(--locked)
+          cargo build --all-targets "${locked[@]}"
 
       # Non-blocking on purpose. Flip to `-D warnings` once the backlog is
       # cleared — this is the only place that needs changing.
