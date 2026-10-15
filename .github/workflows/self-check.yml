@@ -5,8 +5,8 @@
 # checked it. Three of the bugs this catches shipped precisely because the
 # scripts had no tests: dead [exceptions] entries that could never fire, a
 # `package =` rename the version checker could not see, and a docstring that
-# described enforcement the code did not do. Two of those scripts are gone now,
-# replaced by the Cargo workspace; what remains is the deps.toml plumbing.
+# described enforcement the code did not do. Those scripts are gone now; what
+# remains is making sure every workflow and action parses and lints.
 name: Self-check
 
 on:
@@ -23,14 +23,14 @@ jobs:
     name: Workflows parse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Parse every workflow
         run: |
           python3 - <<'PY'
           import pathlib, sys, yaml
           bad = 0
-          for p in sorted(pathlib.Path(".github/workflows").glob("*.yml")):
+          for p in sorted(pathlib.Path(".github").glob("**/*.yml")):
               try:
                   yaml.safe_load(p.read_text())
                   print(f"ok    {p}")
@@ -43,26 +43,3 @@ jobs:
         uses: raven-actions/actionlint@v2
         with:
           fail-on-error: true
-
-  scripts:
-    name: Version and package checks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { path: .github-org }
-
-      # The crown-versions.toml coherence check lived here. Both it and the
-      # spec it checked are gone: the nine desktop crates are one Cargo
-      # workspace now, so a single [workspace.dependencies] table is the
-      # version spec and cargo enforces it. A linter for a file that no longer
-      # exists is not a safety net.
-
-      - uses: actions/checkout@v4
-        with:
-          repository: Crown-OS/crownOs-setup
-          path: crownos-setup
-
-      - name: deps.toml is the source of the CI package lists
-        run: |
-          python3 .github-org/scripts/check-ci-packages.py crownos-setup
-          python3 crownos-setup/scripts/gen.py --check

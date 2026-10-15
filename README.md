@@ -2,24 +2,16 @@
 
 Organization-level GitHub configuration for [CrownOS](https://github.com/Crown-OS).
 
-> **This repository does not exist on GitHub yet.** Every caller workflow in
-> every repo references `Crown-OS/.github/.github/workflows/*.yml@main`, so
-> until it is pushed, CI fails everywhere with "workflow was not found" — which
-> is why no CrownOS repo has ever run CI. Creating it is the first thing that
-> has to happen.
+Three things live here:
 
-Four things live here:
-
-1. **Reusable workflows** that every CrownOS repository calls, so the native
-   dependency list and the lint policy exist in one place instead of sixteen.
-2. **`scripts/check-ci-packages.py`** — keeps the apt lists in the workflows in
-   step with `crownos-setup/deps.toml`, which is where native dependencies are
-   actually declared.
-3. **Default community health files** — `CODE_OF_CONDUCT.md`, `SECURITY.md`, the
+1. **Reusable workflows** that every CrownOS repository calls, and the
+   `prepare-workspace` action they share, so the native dependency list, the
+   sibling checkout and the lint policy exist in one place instead of sixteen.
+2. **Default community health files** — `CODE_OF_CONDUCT.md`, `SECURITY.md`, the
    issue templates and the pull-request template. GitHub applies these to any
    repo in the org that does not have its own, so they are maintained once
    instead of sixteen times.
-4. **`profile/README.md`** — the organisation's public landing page.
+3. **`profile/README.md`** — the organisation's public landing page.
 
 ## Reusable workflows
 
@@ -31,11 +23,12 @@ its own CI checks their links.
 
 | Workflow | Used by | Does |
 |---|---|---|
-| `rust.yml` | crowncrate-linux · lls-protocol · crownlauncher | rustfmt (blocking) · build · clippy (advisory) · test |
+| `rust.yml` | every component in crownos-iso's `components.txt` · crownos-iso | rustfmt (blocking) · build · clippy (advisory) · test |
 | `web.yml` | crownos-website | bun install · biome check · next build |
 | `android.yml` | crowncrate-android | assembleDebug · unit tests · APK artifact |
-| `shell.yml` | crownos-iso | shellcheck |
+| `shell.yml` | — | shellcheck |
 | `release.yml` | Rust binaries, on `v*` tags | release build · tarball · draft GitHub Release |
+| `arch-package.yml` | every component, on `v*` tags | release build · `.pkg.tar.zst` · published GitHub Release for crownos-iso |
 | `publish.yml` | Rust crates, on `v*` tags | tag/manifest check · dry run · `cargo publish` |
 
 ### Calling one
@@ -59,21 +52,25 @@ name, the second is the directory inside it.
 
 ### Inputs that matter
 
-**`packages`** and **`dbus`** are the only inputs that still matter. The
-`siblings` input is gone: it cloned neighbouring repos and wrote a
-`[patch.crates-io]` overlay so a crate could build against an unpublished
-version of its dependency. The nine Rust crates are now one Cargo workspace in
-[Crown-OS/crownOs](https://github.com/Crown-OS/crownOs), where they resolve each
-other by path, so there is nothing left to patch.
-
-**`packages`** — extra apt packages on top of the base Wayland/Vulkan/font/D-Bus
-set. The compositor needs `libdrm-dev libinput-dev libseat-dev libudev-dev
-libpixman-1-dev`; crowndictator needs `libasound2-dev libevdev-dev`;
-crowncrate-linux needs `libgtk-4-dev`.
+**`packages`** — extra pacman packages on top of the base Wayland/Vulkan/font/
+D-Bus set in `prepare-workspace`. Every job runs in an `archlinux` container,
+so CI builds against the same libraries the ISO ships, and `arch-package.yml`
+can read runtime dependencies straight off `pacman -Qqo`.
 
 **`dbus`** — set `true` for crownotify only. Its tests register real well-known
 names on the session bus, so they run under `dbus-run-session` with
 `--test-threads=1`.
+
+**`test`** — set `false` for a repository whose tests need a live compositor.
+
+### Sibling path dependencies
+
+Components depend on each other by `path = "../crownos-config"`.
+`prepare-workspace` checks the caller out into a directory named after itself,
+then scans every `Cargo.toml` and clones each missing sibling flat next to it
+from `Crown-OS/<dir>` — repeatedly, so siblings of siblings resolve too. A
+directory whose repository is named differently is mapped through `aliases`
+(`llts-protocol=lls-protocol` by default).
 
 ## Lint policy
 
@@ -156,14 +153,8 @@ declared four different ways across four repos — and keeping them would have
 meant maintaining a second, weaker copy of what the workspace already
 guarantees.
 
-## Native dependencies are not defined here
+## Native dependencies
 
-The apt list in `rust.yml` is **generated** from
-[`crownos-setup/deps.toml`](https://github.com/Crown-OS/crownos-setup), which is
-also the source for the bootstrap script and the documentation tables. Editing it
-here will drift. Edit `deps.toml`, run `scripts/gen.py`, and copy
-`generated/ci-packages.txt` across.
-
-That drift was real: this workflow used to install `libfontconfig-1-dev`, which
-exists on neither Debian nor Ubuntu, and omitted `xwayland` for `crownpositor`
-despite the compositor enabling smithay's `xwayland` feature.
+Build dependencies are pacman packages: the base set lives in
+`.github/actions/prepare-workspace/action.yml`, per-repo extras in each caller's
+`packages:` input. `release.yml` and `publish.yml` still run on Ubuntu with apt.

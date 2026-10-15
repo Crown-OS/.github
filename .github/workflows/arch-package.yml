@@ -1,0 +1,106 @@
+# Reusable CD that turns a v* tag into an Arch package on a published GitHub
+# Release. Crown-OS/crownos-iso downloads the latest release of every component
+# and bakes the packages into the ISO, so the release must not be a draft:
+# `gh release download` never sees drafts.
+#
+# Every binary target in the workspace is packaged into /usr/bin. Runtime
+# dependencies come from `ldd` on those binaries, plus `depends` for libraries
+# that are dlopen'd and so invisible to it (Vulkan, Wayland, xkbcommon).
+#
+# Path dependencies outside the repository (`../crownos-config`, `../vendor`)
+# are cloned flat from Crown-OS by the prepare-workspace action.
+
+name: Arch package
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        description: Extra pacman packages needed to build, beyond the base set.
+        type: string
+        default: ''
+      depends:
+        description: Runtime packages ldd cannot see because they are dlopen'd.
+        type: string
+        default: wayland libxkbcommon vulkan-icd-loader
+      aliases:
+        description: >-
+          Space-separated dir=repository pairs for siblings whose directory
+          differs from their repository name.
+        type: string
+        default: llts-protocol=lls-protocol
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: build and publish
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPOSITORY: ${{ github.event.repository.name }}
+    steps:
+      - uses: Crown-OS/.github/.github/actions/prepare-workspace@main
+        with:
+          packages: ${{ inputs.packages }}
+          aliases: ${{ inputs.aliases }}
+
+      - name: Build
+        working-directory: ${{ github.event.repository.name }}
+        run: |
+          locked=()
+          [ -f Cargo.lock ] && locked=(--locked)
+          cargo build --release --bins "${locked[@]}"
+
+      - name: Write PKGBUILD
+        working-directory: ${{ github.event.repository.name }}
+        env:
+          EXTRA_DEPENDS: ${{ inputs.depends }}
+        run: |
+          metadata=$(cargo metadata --no-deps --format-version 1)
+          target_dir=$(jq -r .target_directory <<<"$metadata")
+          mapfile -t binaries < <(jq -r --arg dir "$target_dir/release" \
+            '.packages[].targets[] | select(.kind | index("bin")) | "\($dir)/\(.name)"' <<<"$metadata" | sort -u)
+          [ ${#binaries[@]} -gt 0 ] || { echo "::error::no binary targets to package"; exit 1; }
+
+          description=$(jq -r '[.packages[].description | select(.)][0] // ""' <<<"$metadata")
+          license=$(jq -r '[.packages[].license | select(.)][0] // "custom"' <<<"$metadata")
+          mapfile -t depends < <({
+            ldd "${binaries[@]}" | awk '$2 == "=>" && $3 ~ /^\// { print $3 }' | xargs -r pacman -Qqo
+            tr ' ' '\n' <<<"$EXTRA_DEPENDS"
+          } | sort -u | awk NF)
+
+          version=${GITHUB_REF_NAME#v}
+          mkdir -p ../pkgbuild
+          {
+            echo "pkgname=$REPOSITORY"
+            echo "pkgver=${version//-/_}"
+            echo "pkgrel=1"
+            echo "pkgdesc=$(printf '%q' "$description")"
+            echo "arch=(x86_64)"
+            echo "license=($(printf '%q' "$license"))"
+            echo "depends=(${depends[*]})"
+            echo "options=(!debug)"
+            echo "package() {"
+            echo "  install -Dm755 -t \"\$pkgdir/usr/bin\" ${binaries[*]@Q}"
+            echo "}"
+          } > ../pkgbuild/PKGBUILD
+          cat ../pkgbuild/PKGBUILD
+
+      - name: Package
+        run: |
+          useradd --create-home builder
+          chown -R builder pkgbuild
+          cd pkgbuild && runuser -u builder -- makepkg --nodeps --noconfirm
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+          gh release upload "$GITHUB_REF_NAME" pkgbuild/*.pkg.tar.zst --repo "$GITHUB_REPOSITORY" --clobber
