@@ -9,6 +9,10 @@
 #
 # Path dependencies outside the repository (`../crownos-config`, `../vendor`)
 # are cloned flat from Crown-OS by the prepare-workspace action.
+#
+# Once the package is published, Crown-OS/crownos-iso is asked to rebuild and
+# install-test the ISO, if the caller passes CROWNOS_ISO_DISPATCH_TOKEN (a token
+# that may create repository dispatches there), e.g. with `secrets: inherit`.
 
 name: Arch package
 
@@ -29,6 +33,10 @@ on:
           differs from their repository name.
         type: string
         default: llts-protocol=lls-protocol
+    secrets:
+      CROWNOS_ISO_DISPATCH_TOKEN:
+        description: May create repository dispatches on Crown-OS/crownos-iso.
+        required: false
 
 permissions:
   contents: write
@@ -104,3 +112,18 @@ jobs:
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
           gh release upload "$GITHUB_REF_NAME" pkgbuild/*.pkg.tar.zst --repo "$GITHUB_REPOSITORY" --clobber
+
+  notify-iso:
+    name: rebuild the ISO
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.CROWNOS_ISO_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::CROWNOS_ISO_DISPATCH_TOKEN is not set; crownos-iso picks this release up on its next build."
+            exit 0
+          fi
+          gh api repos/Crown-OS/crownos-iso/dispatches \
+            -f event_type=component-updated -f "client_payload[repository]=$GITHUB_REPOSITORY"
