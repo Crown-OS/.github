@@ -28,7 +28,7 @@ runs:
       shell: bash
       run: |
         pacman -Syu --noconfirm --needed \
-          base-devel rustup clang cmake git github-cli jq \
+          base-devel rustup clang cmake git github-cli jq unzip \
           wayland wayland-protocols libxkbcommon vulkan-icd-loader vulkan-headers mesa \
           fontconfig freetype2 dbus bluez-libs libxcb libx11 systemd-libs \
           ${{ inputs.packages }}
