@@ -30,7 +30,7 @@ runs:
         pacman -Syu --noconfirm --needed \
           base-devel rustup clang cmake git github-cli jq unzip \
           wayland wayland-protocols libxkbcommon vulkan-icd-loader vulkan-headers mesa \
-          fontconfig freetype2 dbus bluez-libs libxcb libx11 systemd-libs \
+          fontconfig freetype2 inter-font ttf-dejavu dbus bluez-libs libxcb libx11 systemd-libs \
           ${{ inputs.packages }}
         rustup default ${{ inputs.toolchain }}
         rustup component add rustfmt clippy
