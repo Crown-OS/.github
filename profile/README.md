@@ -1,3 +1,5 @@
+![Introducing CrownOS](./1793934322.jpg)
+
 # **CrownOS** - Not yet another Linux Distro
 
 CrownOS is an **Agentic Linux desktop OS** written in Rust with advanced _computer use_ capabilities. We are redesigning everything above the kernel like compositor, shell, bar, dock, notifications, settings and a multi device bridge for the agentic era tuned for automation, customization and polished user experience out of the box unlike any other linux distros. 
