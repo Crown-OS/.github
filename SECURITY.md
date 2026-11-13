@@ -15,7 +15,7 @@ repository in the [Crown-OS](https://github.com/Crown-OS) organization.
 Report it through
 [GitHub private security advisories](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
 on the affected repository, or contact a maintainer listed in
-[CONTRIBUTING.md](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md) directly.
+[CONTRIBUTING.md](https://github.com/Crown-OS/.github/blob/main/CONTRIBUTING.md) directly.
 
 Please include:
 

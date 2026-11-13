@@ -1,12 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Documentation
-    url: https://github.com/Crown-OS/crownOs/tree/main/docs
-    about: Architecture, configuration, keybindings and troubleshooting -- beside the code they describe.
-
-  - name: Project status — what works today
-    url: https://github.com/Crown-OS/crownOs#verified-not-assumed
-    about: Several components are known-broken or partly implemented. Check here before filing a bug.
+  - name: Contribution guide
+    url: https://github.com/Crown-OS/.github/blob/main/CONTRIBUTING.md
+    about: How to set up, pick an issue, and open a pull request.
 
   - name: Security vulnerabilities
     url: https://github.com/Crown-OS/.github/blob/main/SECURITY.md

@@ -6,9 +6,7 @@ body:
     attributes:
       value: |
         Before filing, please check
-        [Project status](https://github.com/Crown-OS/crownOs#verified-not-assumed)
-        and
-        [Known limitations](https://github.com/Crown-OS/crownOs/blob/main/docs/troubleshooting.md).
+        [open issues](https://github.com/search?q=org%3ACrown-OS+is%3Aissue+is%3Aopen&type=issues).
         Several components have documented gaps — blur not rendering, the dock
         not launching applications, five config sections having no reader — and
         those are known rather than bugs.

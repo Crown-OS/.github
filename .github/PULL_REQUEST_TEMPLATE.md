@@ -1,15 +1,12 @@
 <!--
-  CrownOS pull request template.
-
-  CI covers fmt, build and tests. The Testing section below is for what CI
-  cannot check — which compositor you ran under, and what you actually saw.
-  Please be specific there.
+  Title: Conventional Commits, e.g. `fix(dock): keep the icon highlight after a drag`.
+  The PR is squash-merged and the title becomes the commit on main.
+  Guide: https://github.com/Crown-OS/.github/blob/main/CONTRIBUTING.md
 -->
 
 ## Closes
 
-<!-- Link the issue this resolves: Closes #<n> | Fixes #<n> | Resolves #<n>
-     For a small, self-explanatory change, a clear Summary below is enough. -->
+<!-- Closes #<n> | Fixes #<n>. Small, self-explanatory changes may skip this. -->
 
 Closes #
 
@@ -17,38 +14,23 @@ Closes #
 
 <!-- What does this change do, and why? -->
 
-## Changes
-
-<!-- Bullet list of notable changes. -->
-
--
-
 ## Testing
 
-<!-- What did you run, and what did it say? Be specific — "tests pass" is not
-     useful without saying which. Include manual verification too: which
-     compositor you ran under, what you observed. -->
+<!-- CI runs fmt, build, clippy and tests. Describe what CI cannot check:
+     which compositor you ran under, what you did, what you observed. -->
 
-```
-cargo fmt --all              →
-cargo clippy -- -D warnings  →
-cargo test --all             →
-```
+## Cross-repo changes
 
-Manual verification:
+<!-- Does this need, or break, another Crown-OS repository? Link the companion
+     PRs so a maintainer can merge them in dependency order. Otherwise "None". -->
+
+None
 
 ## Checklist
 
-- [ ] Branch is rebased onto `main`
-- [ ] Each commit follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-- [ ] Each commit is a single logical change, with fixups squashed
-- [ ] Each commit builds on its own
-- [ ] `cargo fmt` / `bun run format` / equivalent has been run
-- [ ] Relevant tests added or updated
-- [ ] Documentation updated if this changes behaviour, config, env vars or keybindings
-
-<!--
-  Cross-repo changes: if this breaks a downstream repo (e.g. a crownshell API
-  change affecting crownotify or crowndictator), say so here and link the
-  companion PRs so a maintainer can sequence the merges.
--->
+- [ ] The PR title follows Conventional Commits
+- [ ] Every commit is signed off (`git commit -s`, DCO)
+- [ ] `cargo fmt` and `cargo test` pass locally, and no new clippy warnings are added
+- [ ] Tests are added or updated for changed behaviour
+- [ ] Docs are updated if behaviour, config, env vars or keybindings changed
+- [ ] CodeRabbit comments are addressed or answered

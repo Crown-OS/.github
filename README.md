@@ -135,8 +135,7 @@ None of that is visible on GitHub yet — the fixes are local and unpushed.
 
 ## See also
 
-- [Contribution guide](https://github.com/Crown-OS/crownOs/blob/main/CONTRIBUTING.md)
-- [CrownOS documentation](https://github.com/Crown-OS/crownOs/tree/main/docs)
+- [Contribution guide](https://github.com/Crown-OS/.github/blob/main/CONTRIBUTING.md)
 
 
 ---
