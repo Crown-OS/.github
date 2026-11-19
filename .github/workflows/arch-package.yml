@@ -62,7 +62,7 @@ jobs:
         run: |
           locked=()
           [ -f Cargo.lock ] && locked=(--locked)
-          cargo build --release --bins "${locked[@]}"
+          cargo build --release --workspace --bins "${locked[@]}"
 
       - name: Write PKGBUILD
         working-directory: ${{ github.event.repository.name }}
