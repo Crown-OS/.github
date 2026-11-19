@@ -3,7 +3,8 @@
 # and bakes the packages into the ISO, so the release must not be a draft:
 # `gh release download` never sees drafts.
 #
-# Every binary target in the workspace is packaged into /usr/bin. Runtime
+# Every binary target in the workspace is built, with the features it requires,
+# and packaged into /usr/bin. Runtime
 # dependencies come from `ldd` on those binaries, plus `depends` for libraries
 # that are dlopen'd and so invisible to it (Vulkan, Wayland, xkbcommon).
 #
@@ -62,7 +63,10 @@ jobs:
         run: |
           locked=()
           [ -f Cargo.lock ] && locked=(--locked)
-          cargo build --release --workspace --bins "${locked[@]}"
+          features=$(cargo metadata --no-deps --format-version 1 | jq -r '
+            .packages[] | .name as $package | .targets[] | select(.kind | index("bin"))
+            | (.["required-features"] // [])[] | "\($package)/\(.)"' | sort -u | paste -sd, -)
+          cargo build --release --workspace --bins ${features:+--features "$features"} "${locked[@]}"
 
       - name: Write PKGBUILD
         working-directory: ${{ github.event.repository.name }}
