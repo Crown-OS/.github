@@ -19,7 +19,7 @@ inputs:
     default: llts-protocol=lls-protocol
   toolchain:
     description: Default Rust toolchain. A repo's rust-toolchain.toml still wins.
-    default: stable
+    default: 1.100.0
 
 runs:
   using: composite
@@ -58,11 +58,18 @@ runs:
             done | sort -u | while read -r dir; do [ -e "$dir" ] || echo "$dir"; done
         }
 
+        clone_sibling() {
+          local dir=$1 repository=$2
+          git clone --quiet --depth 1 "https://github.com/Crown-OS/$repository.git" "$dir" ||
+            { echo "::error::path dependency ../$dir has no Crown-OS/$repository repository"; return 1; }
+          echo "cloned Crown-OS/$repository@$(git -C "$dir" rev-parse --short HEAD) into ../$dir"
+        }
+
         while missing=$(missing_siblings) && [ -n "$missing" ]; do
+          clones=()
           for dir in $missing; do
-            repository=${repository_of[$dir]:-$dir}
-            git clone --quiet --depth 1 "https://github.com/Crown-OS/$repository.git" "$dir" ||
-              { echo "::error::path dependency ../$dir has no Crown-OS/$repository repository"; exit 1; }
-            echo "cloned Crown-OS/$repository@$(git -C "$dir" rev-parse --short HEAD) into ../$dir"
+            clone_sibling "$dir" "${repository_of[$dir]:-$dir}" &
+            clones+=($!)
           done
+          for clone in "${clones[@]}"; do wait "$clone" || exit 1; done
         done

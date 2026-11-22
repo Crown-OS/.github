@@ -36,7 +36,7 @@ on:
       toolchain:
         description: Rust toolchain. A repo's rust-toolchain.toml still wins.
         type: string
-        default: stable
+        default: 1.100.0
 
 concurrency:
   group: rust-${{ github.workflow }}-${{ github.ref }}
@@ -49,6 +49,16 @@ env:
   # process-global, which is also why crownos-config's e2e suite is a single
   # test function.
   CROWN_CONFIG_DIR: /tmp/crownos-ci
+  # Cargo rebuilds the sibling path crates on each run because they are fresh
+  # clones. sccache uses the file contents as the key and returns the crates
+  # that did not change. The action reports the hits after the job.
+  # If sccache cannot reach its own server, rustc runs directly.
+  RUSTC_WRAPPER: sccache
+  SCCACHE_GHA_ENABLED: 'true'
+  SCCACHE_IGNORE_SERVER_IO_ERROR: 1
+  CARGO_INCREMENTAL: 0
+  # Backtraces keep the file and line. Links are faster and target/ is smaller.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
@@ -64,6 +74,10 @@ jobs:
         with:
           packages: ${{ inputs.packages }}
           toolchain: ${{ inputs.toolchain }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.19.0
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -85,7 +99,7 @@ jobs:
       - name: Clippy (advisory)
         id: clippy
         continue-on-error: true
-        run: cargo clippy --all-targets -- -D warnings
+        run: env -u RUSTC_WRAPPER cargo clippy --all-targets -- -D warnings
 
       - name: Note clippy result
         if: steps.clippy.outcome == 'failure'
