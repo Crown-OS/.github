@@ -3,11 +3,9 @@ contact_links:
   - name: Contribution guide
     url: https://github.com/Crown-OS/.github/blob/main/CONTRIBUTING.md
     about: How to set up, pick an issue, and open a pull request.
-
   - name: Security vulnerabilities
     url: https://github.com/Crown-OS/.github/blob/main/SECURITY.md
     about: Do not open a public issue. Report privately via a GitHub security advisory.
-
   - name: Questions and discussion
     url: https://github.com/orgs/Crown-OS/discussions
     about: For questions rather than defects. You can also file an issue tagged `question`.

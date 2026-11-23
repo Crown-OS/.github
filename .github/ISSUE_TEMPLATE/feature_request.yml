@@ -9,25 +9,21 @@ body:
         [open issues](https://github.com/search?q=org%3ACrown-OS+is%3Aissue+is%3Aopen&type=issues)
         first — a good deal of what CrownOS is "missing" is already specified and
         partly built, and that page lists it.
-
   - type: textarea
     id: problem
     attributes:
       label: The problem
       description: >
-        What are you trying to do that you cannot do today? Describe the problem
-        rather than only your proposed solution — there may be a better fit with
-        how CrownOS already works.
+        What are you trying to do that you cannot do today? Describe the problem rather than only your proposed solution — there may be a better fit with how CrownOS already works.
+
     validations:
       required: true
-
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
     validations:
       required: true
-
   - type: dropdown
     id: scope
     attributes:
@@ -39,31 +35,25 @@ body:
         - Not sure
     validations:
       required: true
-
   - type: input
     id: repos
     attributes:
       label: Which repositories
       placeholder: crownpositor, crownos-config
-
   - type: textarea
     id: fit
     attributes:
       label: How it fits CrownOS
       description: >
-        CrownOS has a stated design language — monochromatic, minimal,
-        professional — and some architectural commitments: configuration is the
-        coordination mechanism, there is one action vocabulary for keyboard and
-        gestures, and layout code cannot see Wayland types. How does this fit?
+        CrownOS has a stated design language — monochromatic, minimal, professional — and some architectural commitments: configuration is the coordination mechanism, there is one action vocabulary for keyboard and gestures, and layout code cannot see Wayland types. How does this fit?
+
     validations:
       required: true
-
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
       description: Including doing nothing, or solving it outside CrownOS.
-
   - type: checkboxes
     id: contributing
     attributes:

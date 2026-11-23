@@ -1,0 +1,161 @@
+# Reusable CI workflow for CrownOS Rust projects.
+name: rust-ci
+on:
+  workflow_call:
+    inputs:
+      msrv:
+        description: "Minimum supported Rust version"
+        type: string
+        default: ""
+      cargo-flags:
+        description: "Feature flags applied to every cargo invocation."
+        type: string
+        default: "--all-features"
+      deps:
+        description: "apt packages needed to build (e.g. Wayland-dev libs)."
+        type: string
+        default: ""
+      coverage:
+        description: "Run coverage and upload to Codecov."
+        type: boolean
+        default: true
+      targets:
+        description: "JSON array of Rust targets to build."
+        type: string
+        default: '["x86_64-unknown-linux-gnu","x86_64-unknown-linux-musl"]'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.deps }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets ${{ inputs.cargo-flags }} -- -D warnings
+      - name: rustdoc
+        run: cargo doc --workspace --no-deps ${{ inputs.cargo-flags }}
+        env:
+          RUSTDOCFLAGS: -D warnings
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.deps }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Unit and integration tests
+        run: cargo nextest run --workspace ${{ inputs.cargo-flags }}
+      # nextest does not run doctests, so they need a separate pass.
+      - name: Doc tests
+        run: cargo test --workspace --doc ${{ inputs.cargo-flags }}
+  msrv:
+    name: msrv
+    if: inputs.msrv != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.deps }}
+      # @master is required to pass an arbitrary toolchain version.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.msrv }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-${{ inputs.msrv }}
+      - run: cargo check --workspace --all-targets ${{ inputs.cargo-flags }}
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Requires a deny.toml in the repo root.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources
+  coverage:
+    name: coverage
+    if: inputs.coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.deps }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      - run: cargo llvm-cov nextest --workspace ${{ inputs.cargo-flags }} --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.targets) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - if: inputs.deps != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.deps }}
+      - uses: dtolnay/rust-toolchain@stable
+      # Installs the target, cross linker and sysroot in one step.
+      - uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo build --workspace --release --target ${{ matrix.target }} ${{ inputs.cargo-flags }}
+  # Single required status check. Point branch protection and the merge queue at
+  # this job only, so adding or removing jobs above never needs a settings change.
+  # Skipped jobs (msrv, coverage) are not failures.
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, test, msrv, deny, coverage, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

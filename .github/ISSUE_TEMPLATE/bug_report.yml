@@ -13,7 +13,6 @@ body:
 
         **Do not report security issues here.** See
         [SECURITY.md](https://github.com/Crown-OS/.github/blob/main/SECURITY.md).
-
   - type: input
     id: commit
     attributes:
@@ -22,7 +21,6 @@ body:
       placeholder: 6f3189a
     validations:
       required: true
-
   - type: textarea
     id: what-happened
     attributes:
@@ -30,14 +28,12 @@ body:
       description: What did you observe?
     validations:
       required: true
-
   - type: textarea
     id: expected
     attributes:
       label: What you expected
     validations:
       required: true
-
   - type: textarea
     id: reproduce
     attributes:
@@ -49,25 +45,23 @@ body:
         3. …
     validations:
       required: true
-
   - type: input
     id: compositor
     attributes:
       label: Compositor
       description: >
-        Which compositor were you running under? This matters a lot — the same
-        symptom under crownpositor and under Sway is usually a different bug.
+        Which compositor were you running under? This matters a lot — the same symptom under crownpositor and under Sway is usually a different bug.
+
       placeholder: crownpositor (CROWN_BACKEND=winit) / Hyprland 0.45 / Sway 1.9
     validations:
       required: true
-
   - type: textarea
     id: system
     attributes:
       label: System information
       description: >
-        Distribution and kernel, GPU and driver, `rustc --version`, and any
-        relevant package versions (wayland, mesa, vulkan-icd-loader, libinput).
+        Distribution and kernel, GPU and driver, `rustc --version`, and any relevant package versions (wayland, mesa, vulkan-icd-loader, libinput).
+
       placeholder: |
         Arch Linux, kernel 6.12.4
         GPU: AMD RX 6700 XT, mesa 24.3.1
@@ -75,21 +69,19 @@ body:
       render: text
     validations:
       required: true
-
   - type: textarea
     id: logs
     attributes:
       label: Logs
       description: >
-        Run with `RUST_LOG=debug` and paste the relevant output.
-        Note that crowndock does not initialise its logger, so it produces none.
-      render: text
+        Run with `RUST_LOG=debug` and paste the relevant output. Note that crowndock does not initialise its logger, so it produces none.
 
+      render: text
   - type: textarea
     id: config
     attributes:
       label: Relevant configuration
       description: >
-        Contents of any `~/.config/crownos/*.ron` file involved. Redact anything
-        personal.
+        Contents of any `~/.config/crownos/*.ron` file involved. Redact anything personal.
+
       render: ron
